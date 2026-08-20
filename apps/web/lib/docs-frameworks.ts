@@ -99,7 +99,7 @@ export const DOC_FRAMEWORKS: DocFramework[] = [
     cliDetects: false,
     steps: [
       {
-        text: "TanStack Start has no HTML shell; the document head is declared on the root route. Add the script to the scripts array returned by head() in your root route, next to your meta and links.",
+        text: "TanStack Start has no static HTML file; the document shell and its head are declared on the root route. Add the script to the scripts array returned by head() there, next to your meta and links.",
         code: `import { createRootRoute, HeadContent, Scripts } from "@tanstack/react-router";
 
 export const Route = createRootRoute({
