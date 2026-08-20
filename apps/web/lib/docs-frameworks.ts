@@ -98,7 +98,7 @@ export const DOC_FRAMEWORKS: DocFramework[] = [
     cliDetects: true,
     steps: [
       {
-        text: "TanStack Start has no static HTML file; the document shell and its head are declared on the root route. Add the script to the scripts array returned by head() there, next to your meta and links.",
+        text: "TanStack Start has no static HTML file; the document shell and its head are declared on the root route. Add the script to the scripts array returned by head() there, next to your meta and links. On Solid Start the shape is the same; the import comes from @tanstack/solid-router.",
         code: `import { createRootRoute, HeadContent, Scripts } from "@tanstack/react-router";
 
 export const Route = createRootRoute({

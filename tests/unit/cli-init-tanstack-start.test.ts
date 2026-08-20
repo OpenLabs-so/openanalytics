@@ -131,6 +131,17 @@ export const Route = createRootRoute({
 })
 `
 
+/** head() as method shorthand: the form the arrow-object edit cannot see. */
+const ROOT_WITH_METHOD_HEAD = `import { HeadContent, Scripts, createRootRoute } from '@tanstack/react-router'
+
+export const Route = createRootRoute({
+  head() {
+    return { meta: [{ charSet: 'utf-8' }] }
+  },
+  component: RootComponent,
+})
+`
+
 describe('detectFramework on a TanStack Start project', () => {
   it('answers tanstack-start from the @tanstack/react-start dependency', () => {
     writeProject({
@@ -256,6 +267,39 @@ describe('inject on a TanStack Start root route', () => {
 
     expect(() => inject('tanstack-start', ctx())).toThrow(InjectError)
     expect(() => inject('tanstack-start', ctx())).toThrow(/src\/routes\/__root\.tsx not found/)
+  })
+
+  it('refuses a head() it cannot edit rather than adding a second one', () => {
+    // A second `head:` would be shadowed by the person's own and the script
+    // would silently never load — the one outcome an installer must not have.
+    writeProject({ 'src/routes/__root.tsx': ROOT_WITH_METHOD_HEAD })
+
+    expect(() => inject('tanstack-start', ctx())).toThrow(InjectError)
+    expect(() => inject('tanstack-start', ctx())).toThrow(
+      /head\(\) in src\/routes\/__root\.tsx is not written as/,
+    )
+    expect(readFileSync(join(cwd, 'src/routes/__root.tsx'), 'utf8')).toBe(ROOT_WITH_METHOD_HEAD)
+  })
+
+  it('refuses a head referenced by name or written as a block body, too', () => {
+    const forms = [
+      'head: buildHead,',
+      'head: () => {\n    return {}\n  },',
+      'head: async () => {\n    return {}\n  },',
+    ]
+    for (const head of forms) {
+      writeProject({
+        'src/routes/__root.tsx': [
+          "import { createRootRoute } from '@tanstack/react-router'",
+          'export const Route = createRootRoute({',
+          `  ${head}`,
+          '  component: RootComponent,',
+          '})',
+          '',
+        ].join('\n'),
+      })
+      expect(() => inject('tanstack-start', ctx())).toThrow(/is not written as/)
+    }
   })
 
   it('refuses a root route it cannot anchor in, rather than guessing', () => {

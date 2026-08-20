@@ -419,6 +419,16 @@ function injectTanStackStart(ctx: InjectContext): InjectResult {
       ].join('\n')
       content = `${content.slice(0, afterHead)}${block}${content.slice(afterHead)}`
     }
+  } else if (/^[ \t]*(?:async\s+)?head\s*[:(]/m.test(optionsBody)) {
+    // A head() the arrow-object edit cannot see — method shorthand, a block
+    // body, a named function — is a refusal, not a fall-through: adding a
+    // second `head:` would let the person's own win and the script silently
+    // never load, which is the one outcome an installer must not have.
+    throw new InjectError(
+      `head() in ${file.rel} is not written as \`head: () => ({ … })\`, which is the only form ` +
+        'the installer edits. Add the script entry by hand: the TanStack Start page under ' +
+        'Installation in the docs shows where.',
+    )
   } else {
     // No head() at all: one is added as the first root-route option.
     const block = [
