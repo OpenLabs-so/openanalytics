@@ -6,8 +6,9 @@ import { COLLECTOR_BASE_URL } from "@/lib/api";
  * One page template renders all of them (`app/docs/install/[framework]`),
  * so a guide is a list of steps here rather than a hand-built page. The
  * list mirrors what `oa init` detects (`apps/cli/src/init/detect.ts`) plus
- * the hosted-platform guides the CLI cannot reach (Webflow, Shopify) — the
- * snippet is the same everywhere; only the file it goes into changes.
+ * the guides the CLI does not reach — hosted platforms (Webflow, Shopify) and
+ * frameworks it has no injector for yet (TanStack Start) — the snippet is the
+ * same everywhere; only the file it goes into changes.
  *
  * `SNIPPET` is the placeholder-key form of the tracker tag from
  * `docs/frontend/tracker_snippet.md`; every claim in the steps is that
@@ -88,6 +89,54 @@ export const DOC_FRAMEWORKS: DocFramework[] = [
       },
       {
         text: "Client-side navigation is tracked automatically: the script patches the history API, so route changes count as pageviews with no extra code.",
+      },
+      VERIFY_STEP,
+    ],
+  },
+  {
+    slug: "tanstack-start",
+    name: "TanStack Start",
+    cliDetects: false,
+    steps: [
+      {
+        text: "TanStack Start has no HTML shell; the document head is declared on the root route. Add the script to the scripts array returned by head() in your root route, next to your meta and links.",
+        code: `import { createRootRoute, HeadContent, Scripts } from "@tanstack/react-router";
+
+export const Route = createRootRoute({
+  head: () => ({
+    meta: [{ charSet: "utf-8" }],
+    scripts: [
+      {
+        src: "${COLLECTOR_BASE_URL}/oa.js",
+        async: true,
+        "data-key": "YOUR_TRACKING_KEY",
+        "data-collector": "${COLLECTOR_BASE_URL}",
+      },
+    ],
+  }),
+  shellComponent: RootDocument,
+});`,
+        caption: "src/routes/__root.tsx",
+      },
+      {
+        text: "Make sure <HeadContent /> is rendered inside <head> in your root document; it is what turns the head() entries into tags. Every Start starter already has it.",
+        code: `function RootDocument({ children }) {
+  return (
+    <html>
+      <head>
+        <HeadContent />
+      </head>
+      <body>
+        {children}
+        <Scripts />
+      </body>
+    </html>
+  );
+}`,
+        caption: "src/routes/__root.tsx",
+      },
+      {
+        text: "Router navigation is tracked automatically; the root route stays mounted across client-side transitions, so the tag loads once and follows every route change.",
       },
       VERIFY_STEP,
     ],
