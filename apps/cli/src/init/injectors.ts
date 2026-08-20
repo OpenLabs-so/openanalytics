@@ -267,6 +267,88 @@ function injectRemix(ctx: InjectContext): InjectResult {
   return { file: file.rel, alreadyInstalled: false }
 }
 
+/**
+ * TanStack Start has no static HTML file: the document shell and its head are
+ * the root route's, the head as its `head()` option rendered by `<HeadContent />`. The tag becomes an entry in
+ * that option's `scripts` array — added to the array when there is one, to the
+ * `head()` object when there is not, and as a whole `head()` when the root
+ * route declares none. Text edits anchored on the file's own indentation, as
+ * the Nuxt injector does; no parser.
+ */
+function injectTanStackStart(ctx: InjectContext): InjectResult {
+  const file = findFile(
+    ctx.cwd,
+    ['src/routes/__root', 'app/routes/__root'].flatMap((base) =>
+      ['.tsx', '.jsx', '.js', '.ts'].map((ext) => base + ext),
+    ),
+  )
+  if (!file) {
+    throw new InjectError(
+      'src/routes/__root.tsx not found. Run this from the root of your TanStack Start project.',
+    )
+  }
+
+  let content = readFile(file.abs)
+  if (isAlreadyInstalled(content)) return { file: file.rel, alreadyInstalled: true }
+
+  const scriptEntry = (indent: string): string =>
+    [
+      `${indent}{`,
+      `${indent}  src: '${ctx.collector}/oa.js',`,
+      `${indent}  'data-key': '${ctx.key}',`,
+      `${indent}  'data-collector': '${ctx.collector}',`,
+      `${indent}  async: true,`,
+      `${indent}},`,
+    ].join('\n')
+
+  // `head: () => ({` — the option as every Start starter writes it, with or
+  // without a parameter, with or without `async`.
+  const head = content.match(/^([ \t]*)head\s*:\s*(?:async\s*)?\([^)]*\)\s*=>\s*\(\s*\{/m)
+  if (head && head.index !== undefined) {
+    const headIndent = head[1] ?? ''
+    const afterHead = head.index + head[0].length
+    const scripts = content.slice(afterHead).match(/^([ \t]*)scripts\s*:\s*\[/m)
+    if (scripts && scripts.index !== undefined) {
+      // The array exists: the tag joins it as the first entry.
+      const at = afterHead + scripts.index + scripts[0].length
+      const itemIndent = `${scripts[1] ?? ''}  `
+      content = `${content.slice(0, at)}\n${scriptEntry(itemIndent)}${content.slice(at)}`
+    } else {
+      // A head() without scripts: the array opens the returned object.
+      const keyIndent = `${headIndent}  `
+      const block = [
+        '',
+        `${keyIndent}scripts: [`,
+        scriptEntry(`${keyIndent}  `),
+        `${keyIndent}],`,
+      ].join('\n')
+      content = `${content.slice(0, afterHead)}${block}${content.slice(afterHead)}`
+    }
+  } else {
+    // No head() at all: one is added as the first root-route option.
+    const anchor = content.indexOf('createRootRoute')
+    if (anchor === -1) {
+      throw new InjectError(`Could not find createRootRoute in ${file.rel}.`)
+    }
+    const brace = content.indexOf('({', anchor)
+    if (brace === -1) {
+      throw new InjectError(`Could not find the root route options in ${file.rel}.`)
+    }
+    const block = [
+      '',
+      '  head: () => ({',
+      '    scripts: [',
+      scriptEntry('      '),
+      '    ],',
+      '  }),',
+    ].join('\n')
+    content = `${content.slice(0, brace + 2)}${block}${content.slice(brace + 2)}`
+  }
+
+  writeFile(file.abs, content)
+  return { file: file.rel, alreadyInstalled: false }
+}
+
 function injectGatsby(ctx: InjectContext): InjectResult {
   const snippet = [
     '// Open Analytics',
@@ -380,6 +462,8 @@ export function inject(framework: FrameworkId, ctx: InjectContext): InjectResult
       return injectSvelteKit(ctx)
     case 'remix':
       return injectRemix(ctx)
+    case 'tanstack-start':
+      return injectTanStackStart(ctx)
     case 'astro':
       return injectAstro(ctx)
     case 'gatsby':

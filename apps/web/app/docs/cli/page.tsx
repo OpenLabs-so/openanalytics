@@ -33,8 +33,9 @@ npx getopen <command>`}</DocCode>
 # non-interactive (CI, scripts):
 npx getopen init --key oa_pk_… --framework nextjs-app --yes`}</DocCode>
         <p>
-          Detected frameworks: Next.js (App and Pages Router), React, Vue,
-          Nuxt, SvelteKit, Remix, Astro, Gatsby, WordPress and plain HTML.
+          Detected frameworks: Next.js (App and Pages Router), TanStack
+          Start, React, Vue, Nuxt, SvelteKit, Remix, Astro, Gatsby,
+          WordPress and plain HTML.
           The <DocLink slug="install">installation guides</DocLink> show
           what it writes, per framework.
         </p>

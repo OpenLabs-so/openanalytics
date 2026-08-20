@@ -29,6 +29,7 @@ export type FrameworkId =
   | 'nuxt'
   | 'sveltekit'
   | 'remix'
+  | 'tanstack-start'
   | 'astro'
   | 'gatsby'
   | 'wordpress'
@@ -42,6 +43,7 @@ export const FRAMEWORKS: readonly Framework[] = [
   { id: 'nuxt', name: 'Nuxt' },
   { id: 'sveltekit', name: 'SvelteKit' },
   { id: 'remix', name: 'Remix' },
+  { id: 'tanstack-start', name: 'TanStack Start' },
   { id: 'astro', name: 'Astro' },
   { id: 'gatsby', name: 'Gatsby' },
   { id: 'wordpress', name: 'WordPress' },
@@ -107,6 +109,14 @@ export function detectFramework(cwd: string): Framework | null {
 
   if (hasConfigFile(cwd, 'remix.config') || hasDependency(pkg, '@remix-run/react')) {
     return frameworkById('remix') ?? null
+  }
+
+  // Start is a Vite app with `react` in its dependencies, so it has to be
+  // asked about before the generic Vite-plus-React question below. The Solid
+  // flavour keeps the same root-route file and `head()` shape, so one answer
+  // covers both.
+  if (hasDependency(pkg, '@tanstack/react-start') || hasDependency(pkg, '@tanstack/solid-start')) {
+    return frameworkById('tanstack-start') ?? null
   }
 
   if (hasConfigFile(cwd, 'astro.config') || hasDependency(pkg, 'astro')) {

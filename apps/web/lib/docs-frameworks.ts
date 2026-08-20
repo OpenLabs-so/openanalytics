@@ -6,9 +6,8 @@ import { COLLECTOR_BASE_URL } from "@/lib/api";
  * One page template renders all of them (`app/docs/install/[framework]`),
  * so a guide is a list of steps here rather than a hand-built page. The
  * list mirrors what `oa init` detects (`apps/cli/src/init/detect.ts`) plus
- * the guides the CLI does not reach — hosted platforms (Webflow, Shopify) and
- * frameworks it has no injector for yet (TanStack Start) — the snippet is the
- * same everywhere; only the file it goes into changes.
+ * the hosted-platform guides the CLI cannot reach (Webflow, Shopify) — the
+ * snippet is the same everywhere; only the file it goes into changes.
  *
  * `SNIPPET` is the placeholder-key form of the tracker tag from
  * `docs/frontend/tracker_snippet.md`; every claim in the steps is that
@@ -96,7 +95,7 @@ export const DOC_FRAMEWORKS: DocFramework[] = [
   {
     slug: "tanstack-start",
     name: "TanStack Start",
-    cliDetects: false,
+    cliDetects: true,
     steps: [
       {
         text: "TanStack Start has no static HTML file; the document shell and its head are declared on the root route. Add the script to the scripts array returned by head() there, next to your meta and links.",
