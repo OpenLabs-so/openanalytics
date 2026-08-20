@@ -102,6 +102,35 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 })
 `
 
+/** A helper with a head() and a scripts array of its own, declared above the
+ * root route — the thing a file-wide search would edit by mistake. */
+const ROOT_AFTER_HELPER_HEAD = `import { HeadContent, Scripts, createRootRoute } from '@tanstack/react-router'
+
+const fallback = {
+  head: () => ({
+    scripts: [{ src: '/helper.js' }],
+  }),
+}
+
+export const Route = createRootRoute({
+  head: () => ({
+    meta: [{ charSet: 'utf-8' }],
+  }),
+  component: RootComponent,
+})
+`
+
+/** An earlier \`({\` call (a destructuring arrow) above a root route that has
+ * no head() — where "the first \`({\` after createRootRoute" used to land. */
+const ROOT_AFTER_PAREN_BRACE = `import { HeadContent, Scripts, createRootRoute } from '@tanstack/react-router'
+
+const seo = ({ title }: { title: string }) => [{ title }]
+
+export const Route = createRootRoute({
+  component: RootComponent,
+})
+`
+
 describe('detectFramework on a TanStack Start project', () => {
   it('answers tanstack-start from the @tanstack/react-start dependency', () => {
     writeProject({
@@ -177,6 +206,30 @@ describe('inject on a TanStack Start root route', () => {
     expect(written.indexOf('head:')).toBeLessThan(written.indexOf('component:'))
   })
 
+  it('edits the root route, not a helper above it that also has a head()', () => {
+    writeProject({ 'src/routes/__root.tsx': ROOT_AFTER_HELPER_HEAD })
+
+    inject('tanstack-start', ctx())
+
+    const written = readFileSync(join(cwd, 'src/routes/__root.tsx'), 'utf8')
+    expect(syntaxErrors(written)).toEqual([])
+    // The helper keeps its one-entry array; ours lands inside createRootRoute's head().
+    expect(written).toContain("scripts: [{ src: '/helper.js' }],")
+    expect(written.indexOf('/oa.js')).toBeGreaterThan(written.indexOf('createRootRoute({'))
+    expect(written.match(/\/oa\.js/g)).toHaveLength(1)
+  })
+
+  it('adds head() to the root route, not at an earlier ({ call', () => {
+    writeProject({ 'src/routes/__root.tsx': ROOT_AFTER_PAREN_BRACE })
+
+    inject('tanstack-start', ctx())
+
+    const written = readFileSync(join(cwd, 'src/routes/__root.tsx'), 'utf8')
+    expect(syntaxErrors(written)).toEqual([])
+    expect(written).toContain('const seo = ({ title }: { title: string }) => [{ title }]')
+    expect(written).toMatch(/createRootRoute\(\{\n {2}head: \(\) => \(\{\n {4}scripts: \[/)
+  })
+
   it('finds the root route under app/routes as well', () => {
     writeProject({ 'app/routes/__root.jsx': ROOT_WITHOUT_SCRIPTS })
 
@@ -208,6 +261,8 @@ describe('inject on a TanStack Start root route', () => {
   it('refuses a root route it cannot anchor in, rather than guessing', () => {
     writeProject({ 'src/routes/__root.tsx': 'export const Route = somethingElse({})\n' })
 
-    expect(() => inject('tanstack-start', ctx())).toThrow(/Could not find createRootRoute/)
+    expect(() => inject('tanstack-start', ctx())).toThrow(
+      /Could not find the createRootRoute options object/,
+    )
   })
 })

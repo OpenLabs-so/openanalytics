@@ -268,6 +268,89 @@ function injectRemix(ctx: InjectContext): InjectResult {
 }
 
 /**
+ * Index of the `}` that closes the `{` at `open`, stepping over string and
+ * template literals and comments so a brace inside `'{'` or `// {` does not
+ * count. `-1` when nothing closes it. Enough of a scanner for an options
+ * object; not a parser, and not trying to be one.
+ */
+function closingBrace(content: string, open: number): number {
+  let depth = 0
+  for (let i = open; i < content.length; i += 1) {
+    const ch = content[i]
+    const next = content[i + 1]
+    if (ch === '/' && next === '/') {
+      const eol = content.indexOf('\n', i)
+      if (eol === -1) return -1
+      i = eol
+      continue
+    }
+    if (ch === '/' && next === '*') {
+      const end = content.indexOf('*/', i + 2)
+      if (end === -1) return -1
+      i = end + 1
+      continue
+    }
+    if (ch === "'" || ch === '"' || ch === '`') {
+      const end = closingQuote(content, i)
+      if (end === -1) return -1
+      i = end
+      continue
+    }
+    if (ch === '{') depth += 1
+    else if (ch === '}') {
+      depth -= 1
+      if (depth === 0) return i
+    }
+  }
+  return -1
+}
+
+/** The index of the quote ending the literal that opens at `start`; a `'` or
+ * `"` left open at the end of its line (JSX text, say) ends there instead. */
+function closingQuote(content: string, start: number): number {
+  const quote = content[start]
+  for (let i = start + 1; i < content.length; i += 1) {
+    const ch = content[i]
+    if (ch === '\\') {
+      i += 1
+      continue
+    }
+    if (ch === quote) return i
+    if (quote !== '`' && ch === '\n') return i
+  }
+  return -1
+}
+
+/**
+ * The root route's options object: `open` is its `{`, `close` its `}`. Found
+ * from the `Route = createRootRoute…` declaration (file-based routing requires
+ * that export), falling back to the first `createRootRoute` that is not on an
+ * import line, then the first `({` after it — which, for
+ * `createRootRouteWithContext<T>()({`, is the second call's.
+ */
+function rootRouteOptions(content: string): { open: number; close: number } | null {
+  const identifier = /\bcreateRootRoute(?:WithContext)?\b/g
+  let anchor = -1
+  const declared = content.match(/\bRoute\s*=\s*createRootRoute(?:WithContext)?\b/)
+  if (declared?.index !== undefined) {
+    anchor = declared.index + declared[0].length
+  } else {
+    for (const match of content.matchAll(identifier)) {
+      const lineStart = content.lastIndexOf('\n', match.index) + 1
+      if (content.slice(lineStart, match.index).trimStart().startsWith('import')) continue
+      anchor = match.index + match[0].length
+      break
+    }
+  }
+  if (anchor === -1) return null
+  const open = content.indexOf('({', anchor)
+  if (open === -1) return null
+  const close = closingBrace(content, open + 1)
+  if (close === -1) return null
+  return { open: open + 1, close }
+}
+
+/**
  * TanStack Start has no static HTML file: the document shell and its head are
  * the root route's, the head as its `head()` option rendered by `<HeadContent />`. The tag becomes an entry in
  * that option's `scripts` array — added to the array when there is one, to the
@@ -301,13 +384,25 @@ function injectTanStackStart(ctx: InjectContext): InjectResult {
       `${indent}},`,
     ].join('\n')
 
+  // Every search is scoped to the root route's own options: a helper above it
+  // with a `head:` of its own, or an earlier `({` call, must not catch the edit.
+  const options = rootRouteOptions(content)
+  if (!options) {
+    throw new InjectError(`Could not find the createRootRoute options object in ${file.rel}.`)
+  }
+  const optionsBody = content.slice(options.open, options.close)
+
   // `head: () => ({` — the option as every Start starter writes it, with or
   // without a parameter, with or without `async`.
-  const head = content.match(/^([ \t]*)head\s*:\s*(?:async\s*)?\([^)]*\)\s*=>\s*\(\s*\{/m)
+  const head = optionsBody.match(/^([ \t]*)head\s*:\s*(?:async\s*)?\([^)]*\)\s*=>\s*\(\s*\{/m)
   if (head && head.index !== undefined) {
     const headIndent = head[1] ?? ''
-    const afterHead = head.index + head[0].length
-    const scripts = content.slice(afterHead).match(/^([ \t]*)scripts\s*:\s*\[/m)
+    const afterHead = options.open + head.index + head[0].length
+    const headClose = closingBrace(content, afterHead - 1)
+    if (headClose === -1) {
+      throw new InjectError(`Could not find the end of head() in ${file.rel}.`)
+    }
+    const scripts = content.slice(afterHead, headClose).match(/^([ \t]*)scripts\s*:\s*\[/m)
     if (scripts && scripts.index !== undefined) {
       // The array exists: the tag joins it as the first entry.
       const at = afterHead + scripts.index + scripts[0].length
@@ -326,14 +421,6 @@ function injectTanStackStart(ctx: InjectContext): InjectResult {
     }
   } else {
     // No head() at all: one is added as the first root-route option.
-    const anchor = content.indexOf('createRootRoute')
-    if (anchor === -1) {
-      throw new InjectError(`Could not find createRootRoute in ${file.rel}.`)
-    }
-    const brace = content.indexOf('({', anchor)
-    if (brace === -1) {
-      throw new InjectError(`Could not find the root route options in ${file.rel}.`)
-    }
     const block = [
       '',
       '  head: () => ({',
@@ -342,7 +429,7 @@ function injectTanStackStart(ctx: InjectContext): InjectResult {
       '    ],',
       '  }),',
     ].join('\n')
-    content = `${content.slice(0, brace + 2)}${block}${content.slice(brace + 2)}`
+    content = `${content.slice(0, options.open + 1)}${block}${content.slice(options.open + 1)}`
   }
 
   writeFile(file.abs, content)
