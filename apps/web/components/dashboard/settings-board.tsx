@@ -36,6 +36,7 @@ import {
 import { TeamSection } from "@/components/dashboard/team-section";
 import { WidgetsSection } from "@/components/dashboard/widgets-section";
 import { CopyButton } from "@/components/ui/copy-button";
+import { TimezoneSelect } from "@/components/ui/timezone-select";
 import { Button } from "@/components/ui/button";
 import { SaveButton } from "@/components/ui/save-button";
 import {
@@ -506,6 +507,18 @@ function General({ site }: { site: SiteSummary }) {
   );
   const [converting, setConverting] = React.useState(false);
 
+  /**
+   * The reporting timezone. `null` means "use the viewer's browser zone", which
+   * is what an unset site did before this field existed and still does.
+   *
+   * It sits beside the currency because it is the same kind of decision — what
+   * the numbers are expressed in — and because the two are read together when
+   * someone is working out why a total looks off by a day.
+   */
+  const [timezone, setTimezone] = React.useState<string | null>(
+    site.reporting_timezone ?? null
+  );
+
   // The tab's two reads, started here so they run in parallel and share one
   // reveal moment. Their panels take the answers as props.
   const publicSettings = usePublicDashboard(site.site_id);
@@ -522,12 +535,14 @@ function General({ site }: { site: SiteSummary }) {
         name: name.trim(),
         domains: nextDomains,
         reporting_currency: currency,
+        reporting_timezone: timezone,
       });
       setName(next.name);
       setDomains(next.domains);
       setPendingRemoval([]);
       setCurrency(next.reporting_currency);
       setAppliedCurrency(next.reporting_currency);
+      setTimezone(next.reporting_timezone ?? null);
     } else {
       setAppliedCurrency(currency);
     }
@@ -742,6 +757,7 @@ function General({ site }: { site: SiteSummary }) {
               but it is the only field here that restates stored history, and
               the copy under it changes with the choice rather than sitting
               still. */}
+          <div className="flex flex-col gap-4 sm:flex-row sm:gap-4 [&>*]:sm:flex-1 [&>*]:sm:min-w-0">
           <label className="flex flex-col gap-1.5">
             <span className="text-sm font-medium">Reporting currency</span>
             <select
@@ -773,6 +789,28 @@ function General({ site }: { site: SiteSummary }) {
                 : `${currency} is a settlement currency the ECB does not publish a rate for. It is accepted, but until a wider rate source lands, payments taken in any other currency stay uncounted in your totals rather than being converted: shown separately, never silently dropped.`}
             </span>
           </label>
+
+          {/* Reporting timezone. Beside the currency deliberately: both answer
+              "what are these numbers expressed in", and a total that looks a day
+              out is read against this field. `null` keeps the old behaviour —
+              whatever zone the viewer's browser is in. */}
+          <label className="flex flex-col gap-1.5">
+            <span className="text-sm font-medium">Reporting timezone</span>
+            <TimezoneSelect
+              ariaLabel="Reporting timezone"
+              disabled={!canEdit}
+              nullLabel="Each viewer's own timezone"
+              onPick={setTimezone}
+              value={timezone}
+              variant="field"
+            />
+            <span className="text-xs leading-5 text-muted-foreground">
+              Which day a number belongs to. Left unset, every viewer sees the
+              site in their own browser&apos;s zone, so two people can read the
+              same range differently.
+            </span>
+          </label>
+          </div>
 
           <div className="flex items-center gap-3">
             <SaveButton
