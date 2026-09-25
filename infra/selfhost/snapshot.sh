@@ -127,8 +127,16 @@ volume_at() {
 # True when this compose project runs its own Postgres. Asked of the resolved
 # configuration, so an override that moves `postgres` behind a profile — which
 # is what `docker-compose.neon.yml` does — counts as not running it.
+#
+# The list is captured before it is searched, never piped into `grep -q`: under
+# `pipefail`, grep exiting at its first match can SIGPIPE compose while it is
+# still writing, and the pipeline then reads as "no postgres" — which would
+# silently leave a bundled database out of the snapshot. For the same reason a
+# configuration compose cannot resolve is an error here, not an answer.
 postgres_in_stack() {
-	compose config --services 2>/dev/null | grep -qx postgres
+	local services
+	services="$(compose config --services)" || die "docker compose could not resolve this stack's configuration, so it cannot tell whether Postgres is part of it"
+	grep -qx postgres <<<"$services"
 }
 
 # --- helpers that run inside the helper image -------------------------------
