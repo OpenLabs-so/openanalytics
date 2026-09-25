@@ -175,34 +175,35 @@ jobs:
       - name: Build
         run: pnpm run build
 
-      # Started as a step rather than as a `services:` container: the official
-      # image needs `server /data` as its command, and service containers can
-      # only supply an image plus options, never arguments. `bitnami/minio`,
-      # which does start a server unattended, no longer publishes public tags.
+      # Started as a step rather than as a `services:` container: the image takes
+      # its data directory as a command argument, and service containers can only
+      # supply an image plus options, never arguments.
+      #
+      # RustFS, not MinIO. MinIO stopped publishing images: Docker Hub first
+      # (2026-09-16), then Quay (2026-09-25, `unauthorized` to an anonymous pull),
+      # and its binary archive answers 410. RustFS 1.0.0 passes the whole
+      # object-storage suite; SeaweedFS and Garage failed the signed browser
+      # upload and LocalStack served a private object without a signature.
       #
       # Pinned to a release rather than `latest` for the same reason Node and
       # ClickHouse are pinned — a floating tag makes CI results depend on when
       # they ran (D-203).
-      # Quay, not Docker Hub: minio/minio stopped resolving there on 2026-09-16.
-      - name: Start MinIO
+      - name: Start RustFS
         run: |
-          docker run -d --name minio -p 9000:9000 \
-            -e MINIO_ROOT_USER=minioadmin \
-            -e MINIO_ROOT_PASSWORD=minioadmin \
-            quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z server /data
+          docker run -d --name rustfs -p 9000:9000             -e RUSTFS_ACCESS_KEY=rustfsadmin             -e RUSTFS_SECRET_KEY=rustfsadmin             rustfs/rustfs:1.0.0 /data
 
-      - name: Wait for MinIO
+      - name: Wait for RustFS
         run: |
           for attempt in $(seq 1 60); do
-            if curl -fsS http://localhost:9000/minio/health/live > /dev/null; then
-              echo "minio ready after ${attempt} attempt(s)"
+            if curl -fsS http://localhost:9000/health > /dev/null; then
+              echo "rustfs ready after ${attempt} attempt(s)"
               exit 0
             fi
             sleep 2
           done
-          echo "minio did not become live within 120s; last attempt:"
-          curl -vsS http://localhost:9000/minio/health/live || true
-          docker logs minio || true
+          echo "rustfs did not become live within 120s; last attempt:"
+          curl -vsS http://localhost:9000/health || true
+          docker logs rustfs || true
           exit 1
 
       # `noeviction` is D-205's requirement for the queue instance and the one
@@ -228,9 +229,9 @@ jobs:
           exit 1
 
       - name: Integration tests
-        # MinIO stands in for the object storage provider G-001 has not chosen.
-        # The suites needing Fly infrastructure skip themselves; the MinIO and
-        # Valkey ones run for real.
+        # RustFS stands in for the S3-compatible provider (Hetzner Object Storage
+        # in production). The suites needing Fly infrastructure skip themselves;
+        # the object-storage and Valkey ones run for real.
         #
         # `redis://` rather than `rediss://`: the connection factory requires TLS
         # and AUTH for the collector hop because it crosses the public internet
@@ -239,8 +240,8 @@ jobs:
         # instance.
         env:
           TEST_S3_ENDPOINT: http://localhost:9000
-          TEST_S3_ACCESS_KEY: minioadmin
-          TEST_S3_SECRET_KEY: minioadmin
+          TEST_S3_ACCESS_KEY: rustfsadmin
+          TEST_S3_SECRET_KEY: rustfsadmin
           TEST_VALKEY_URL: redis://localhost:6379
           TEST_POSTGRES_URL: postgres://openanalytics:openanalytics@localhost:5432/openanalytics_test
           TEST_CLICKHOUSE_URL: http://localhost:8123

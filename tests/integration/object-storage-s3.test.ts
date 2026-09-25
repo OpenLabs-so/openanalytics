@@ -11,24 +11,26 @@ import type { ObjectStorage } from '@openanalytics/integrations'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
 /**
- * Milestone 1 item 10 and G-001: the S3-compatible adapter, against MinIO.
+ * Milestone 1 item 10 and G-001: the S3-compatible adapter, against a real
+ * S3-compatible server.
  *
- * MinIO stands in for the production provider precisely because the provider is
- * still open. The adapter has one implementation for every candidate, so this
- * exercises the code path production will use — what a later provider changes
- * is configuration, and what this test protects is that that stays true.
+ * CI runs RustFS (`rustfs/rustfs:1.0.0`); until 2026-09 it ran MinIO, which
+ * stopped publishing images. Production is Hetzner Object Storage. The adapter
+ * has one implementation for every provider, so this exercises the code path
+ * production uses — what a provider changes is configuration, and what this
+ * test protects is that that stays true.
  *
- * Skipped unless a MinIO endpoint is supplied, so a contributor without one
- * still gets a green run. CI provides it as a service container.
+ * Skipped unless an endpoint is supplied, so a contributor without one still
+ * gets a green run. CI starts one before the suite.
  */
 
 const ENDPOINT = process.env['TEST_S3_ENDPOINT']
-const ACCESS_KEY = process.env['TEST_S3_ACCESS_KEY'] ?? 'minioadmin'
-const SECRET_KEY = process.env['TEST_S3_SECRET_KEY'] ?? 'minioadmin'
+const ACCESS_KEY = process.env['TEST_S3_ACCESS_KEY'] ?? 'rustfsadmin'
+const SECRET_KEY = process.env['TEST_S3_SECRET_KEY'] ?? 'rustfsadmin'
 
-const describeIfMinio = ENDPOINT ? describe : describe.skip
+const describeIfS3 = ENDPOINT ? describe : describe.skip
 
-describeIfMinio('S3-compatible object storage against MinIO', () => {
+describeIfS3('S3-compatible object storage', () => {
   const bucket = `oa-m1-${randomUUID().slice(0, 8)}`
   let storage: ObjectStorage
 
@@ -52,7 +54,7 @@ describeIfMinio('S3-compatible object storage against MinIO', () => {
   }, 60_000)
 
   afterAll(async () => {
-    // Best effort: the bucket is per-run and MinIO is ephemeral in CI.
+    // Best effort: the bucket is per-run and the server is ephemeral in CI.
     try {
       await storage.delete([{ key: 'roundtrip.json' }, { key: 'export.csv' }])
     } catch {
@@ -283,20 +285,22 @@ describeIfMinio('S3-compatible object storage against MinIO', () => {
     ])
   })
 
-  it('documents the provider gap: MinIO refuses an abort-incomplete-only rule', async () => {
-    // Measured 2026-07-29 against both the CI image and play.min.io: a rule
-    // whose only action is AbortIncompleteMultipartUpload is refused wholesale
-    // (`InvalidArgument`), and when the element rides alongside an Expiration
-    // it is silently dropped on read-back. The production provider is not so
-    // limited — the ADR-0032 D1 live proof shows Hetzner accepting the same
-    // rule and returning `DaysAfterInitiation` intact. This test pins the gap
-    // so a MinIO upgrade that closes it announces itself by failing here, at
-    // which point the round-trip above should regain its abort rule.
-    await expect(
-      storage.putBucketLifecycle([
-        { id: 'abort-incomplete', prefix: '', abortIncompleteMultipartDays: 3 },
-      ]),
-    ).rejects.toMatchObject({ reason: 'precondition_failed', retryable: false })
+  it('keeps an abort-incomplete rule beside an expiration rule', async () => {
+    // The rule that reaps abandoned multipart parts. Production (Hetzner)
+    // accepts it and returns `DaysAfterInitiation` intact — the ADR-0032 D1
+    // live proof. MinIO, which CI used until 2026-09, refused an
+    // abort-incomplete-only rule and silently dropped the element beside an
+    // Expiration, so this was pinned as a provider gap; RustFS behaves like
+    // production, and the test now asserts the behaviour production has.
+    const rules = [
+      { id: 'abort-incomplete', prefix: '', abortIncompleteMultipartDays: 3 },
+      { id: 'exports-expire', prefix: 'exports/', expirationDays: 7 },
+    ]
+
+    await storage.putBucketLifecycle(rules)
+
+    const read = [...(await storage.getBucketLifecycle())].sort((a, b) => a.id.localeCompare(b.id))
+    expect(read).toEqual(rules)
   })
 
   it('replaces the whole rule set rather than merging into it', async () => {
@@ -310,7 +314,7 @@ describeIfMinio('S3-compatible object storage against MinIO', () => {
 })
 
 describe('multipart boundary', () => {
-  // Pure arithmetic, so it runs without MinIO — the boundary is a property of
+  // Pure arithmetic, so it runs without a server — the boundary is a property of
   // the protocol and should be pinned whether or not infrastructure is present.
   it('puts the threshold where a single PUT stops being viable', () => {
     expect(requiresMultipart(MULTIPART_MINIMUM_PART_BYTES)).toBe(false)

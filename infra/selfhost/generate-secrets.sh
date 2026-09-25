@@ -141,7 +141,7 @@ export OA_SUB_CLICKHOUSE_MAINTENANCE_PASSWORD="$(hex32)"
 export OA_SUB_CLICKHOUSE_MIGRATION_PASSWORD="$(hex32)"
 export OA_SUB_VALKEY_QUEUE_PASSWORD="$(hex32)"
 export OA_SUB_VALKEY_REALTIME_PASSWORD="$(hex32)"
-export OA_SUB_MINIO_ROOT_PASSWORD="$(hex32)"
+export OA_SUB_RUSTFS_SECRET_KEY="$(hex32)"
 
 # Four independent secrets, none derived from another. They protect different
 # things, and a derivation would make rotating one force rotating the other.

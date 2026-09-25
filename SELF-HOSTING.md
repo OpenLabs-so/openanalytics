@@ -594,18 +594,44 @@ deletions, and drop the assertion.
 
 ### Object storage
 
-Data import and export need an S3-compatible bucket. Any provider works; MinIO
-ships here so you do not need one:
+Data import and export need an S3-compatible bucket. Any provider works;
+[RustFS](https://rustfs.com) ships here so you do not need one:
 
 ```sh
 docker compose --profile object-storage up -d
 ```
 
-Create a bucket and credentials in the MinIO console, then fill in the five
-`OBJECT_STORAGE_*` variables in **both** `env/api.env` and `env/worker.env` — the
-api mints signed URLs and the worker moves the bytes. All five or none: a
-partial block is treated as "not configured" and the import surface is simply
-not mounted.
+Then, once, create the bucket and let the dashboard upload into it. The browser
+PUTs an import archive straight to the bucket, so the bucket needs a CORS rule
+naming your dashboard's origin — without it the upload fails in the browser and
+nowhere else:
+
+```sh
+S3_KEY="$(grep ^RUSTFS_SECRET_KEY env/rustfs.env | cut -d= -f2)"
+aws_cli() {
+  docker run --rm --network openanalytics_oa -v "$PWD:/w" -w /w     -e AWS_ACCESS_KEY_ID=openanalytics -e AWS_SECRET_ACCESS_KEY="$S3_KEY"     -e AWS_DEFAULT_REGION=us-east-1 amazon/aws-cli --endpoint-url http://rustfs:9000 "$@"
+}
+aws_cli s3 mb s3://openanalytics
+cat > cors.json <<'JSON'
+{"CORSRules":[{"AllowedOrigins":["https://app.example.com"],"AllowedMethods":["PUT","GET"],"AllowedHeaders":["*"],"ExposeHeaders":["ETag"],"MaxAgeSeconds":600}]}
+JSON
+aws_cli s3api put-bucket-cors --bucket openanalytics --cors-configuration file://cors.json
+```
+
+Replace `app.example.com` with your dashboard's name. Then fill in the five
+`OBJECT_STORAGE_*` variables in **both** `env/api.env` and `env/worker.env` —
+the api mints signed URLs and the worker moves the bytes. The access key is
+`openanalytics` and the secret is `RUSTFS_SECRET_KEY` from `env/rustfs.env`. All
+five or none: a partial block is treated as "not configured" and the import
+surface is simply not mounted.
+
+**Upgrading from a release that shipped MinIO.** MinIO stopped publishing
+images, so the `minio` service is gone. Only installs that enabled the
+`object-storage` profile are affected: create `env/rustfs.env` from
+`env/rustfs.env.example` with a secret of your own, start the profile, and run
+the two commands above. The old `minio-data` volume is left where it was and
+nothing reads it; import archives and exports are transient by design, so
+nothing durable lived there.
 
 ---
 

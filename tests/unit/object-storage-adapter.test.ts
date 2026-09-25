@@ -4,10 +4,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 /**
  * The S3 adapter's error classification, against a faked client.
  *
- * The MinIO contract suite (`tests/integration/object-storage-minio.test.ts`) is
+ * The S3 contract suite (`tests/integration/object-storage-s3.test.ts`) is
  * where the adapter is proven against a real server, and it stays the truth for
  * everything storage actually does. What it cannot exercise is the failure
- * *classification*: a healthy MinIO never answers `NoSuchBucket`, and provoking
+ * *classification*: a healthy server never answers `NoSuchBucket`, and provoking
  * one would mean deleting the bucket mid-suite. So the mapping — which failure
  * is an outage, which is an absence, and what each one makes a caller do — is
  * pinned here, where the provider's answer is an input rather than a condition

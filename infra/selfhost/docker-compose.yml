@@ -73,7 +73,7 @@
 #
 # ---------------------------------------------------------------------------
 # Optional pieces, off by default, enabled with `--profile`:
-#   --profile object-storage   MinIO, for data import/export and CSV exports
+#   --profile object-storage   RustFS, for data import/export and CSV exports
 #
 # The tracker (`oa.js`) is built by a one-shot container into a shared volume
 # and served by Caddy. See the `tracker-build` service and the Caddyfile.
@@ -548,20 +548,22 @@ services:
   # S3-compatible object storage, for data import/export. Any S3-compatible
   # provider works; enable this only if you do not already have one.
   #   docker compose --profile object-storage up -d
-  # Pulled from Quay: MinIO's Docker Hub repository stopped resolving on
-  # 2026-09-16 ("pull access denied"); the same tag and digest live on Quay.
-  minio:
+  # RustFS rather than MinIO: MinIO stopped publishing images (Docker Hub on
+  # 2026-09-16, Quay on 2026-09-25). RustFS passes the same object-storage
+  # suite CI runs. The bucket and its CORS rule are one-time setup —
+  # SELF-HOSTING.md, "Object storage".
+  rustfs:
     logging: *logging
-    image: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z
-    container_name: oa-minio
+    image: rustfs/rustfs:1.0.0
+    container_name: oa-rustfs
     restart: unless-stopped
     profiles: ['object-storage']
-    command: ['server', '/data', '--console-address', ':9001']
-    env_file: env/minio.env
+    command: ['/data']
+    env_file: env/rustfs.env
     volumes:
-      - minio-data:/data
+      - rustfs-data:/data
     healthcheck:
-      test: ['CMD', 'mc', 'ready', 'local']
+      test: ['CMD', 'curl', '-fsS', 'http://127.0.0.1:9000/health']
       interval: 15s
       timeout: 5s
       retries: 10
@@ -584,4 +586,4 @@ volumes:
   tracker:
   caddy-data:
   caddy-config:
-  minio-data:
+  rustfs-data:

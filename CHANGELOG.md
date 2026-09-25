@@ -8,6 +8,33 @@ taking.
 Releases before 0.6.0 have their notes on the
 [GitHub releases page](https://github.com/OpenLabs-so/openanalytics/releases).
 
+## [Unreleased]
+
+**Upgrade notes: only if you enabled the `object-storage` profile.** Create
+`env/rustfs.env` from `env/rustfs.env.example`, start the profile, and create
+the bucket and its CORS rule as `SELF-HOSTING.md`, "Object storage", shows.
+Everyone else has nothing to do.
+
+### Added
+
+- **Postgres on Neon.** `infra/selfhost/NEON.md` walks a new install, and
+  moving an existing one, onto [Neon](https://neon.com);
+  `docker-compose.neon.yml` takes the bundled `postgres` service out of the
+  stack. `snapshot.sh` and `rollback.sh` now handle a Postgres that is not on
+  the host: the snapshot holds ClickHouse only and records the instant the
+  stack stopped, and a restore stops with the stack down so Postgres can be
+  restored to that instant first.
+
+### Changed
+
+- **The optional object storage is RustFS, not MinIO.** MinIO stopped
+  publishing images — Docker Hub on 2026-09-16, then Quay on 2026-09-25 —
+  so `docker compose --profile object-storage up` could no longer pull it.
+  RustFS (`rustfs/rustfs:1.0.0`) passes the same object-storage suite CI runs.
+  Unlike MinIO it does not open CORS to every origin, which is why the setup
+  now includes a bucket CORS rule. The old `minio-data` volume is left in
+  place and nothing reads it.
+
 ## [0.8.0] - 2026-09-19
 
 **Upgrade notes: nothing by hand — and going back is a restore.**
