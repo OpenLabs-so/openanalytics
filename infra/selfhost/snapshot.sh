@@ -124,19 +124,45 @@ volume_at() {
 	echo "$name"
 }
 
-# True when this compose project runs its own Postgres. Asked of the resolved
-# configuration, so an override that moves `postgres` behind a profile — which
-# is what `docker-compose.neon.yml` does — counts as not running it.
+# True when this compose project defines a `postgres` service. Asked of the
+# resolved configuration, so an override that moves `postgres` behind a profile
+# — which is what `docker-compose.neon.yml` does — counts as not defining it.
 #
 # The list is captured before it is searched, never piped into `grep -q`: under
 # `pipefail`, grep exiting at its first match can SIGPIPE compose while it is
 # still writing, and the pipeline then reads as "no postgres" — which would
 # silently leave a bundled database out of the snapshot. For the same reason a
 # configuration compose cannot resolve is an error here, not an answer.
-postgres_in_stack() {
+postgres_service_defined() {
 	local services
 	services="$(compose config --services)" || die "docker compose could not resolve this stack's configuration, so it cannot tell whether Postgres is part of it"
 	grep -qx postgres <<<"$services"
+}
+
+# The host the api's DATABASE_URL names, or empty when env/api.env gives it
+# through DATABASE_URL_FILE instead — that path is inside the container, so the
+# host cannot read it. Host only: the credentials never leave this function.
+database_host() {
+	local url
+	url="$(grep -E '^DATABASE_URL=' env/api.env 2>/dev/null | tail -1 || true)"
+	url="${url#DATABASE_URL=}"
+	[ -n "$url" ] || return 0
+	url="${url#*://}"
+	url="${url##*@}"
+	echo "${url%%[:/?]*}"
+}
+
+# True when the database the services actually use is the bundled one: the
+# service is defined AND the api's URL points at it. A `postgres` container that
+# is still defined while DATABASE_URL names another host — NEON.md's step 5
+# skipped, or any other managed Postgres — holds nothing the services write, so
+# archiving it would be a snapshot of the wrong database. When the URL cannot be
+# read (DATABASE_URL_FILE), the service alone decides, as it did before.
+postgres_in_stack() {
+	postgres_service_defined || return 1
+	local host
+	host="$(database_host)"
+	[ -z "$host" ] || [ "$host" = postgres ]
 }
 
 # --- helpers that run inside the helper image -------------------------------
@@ -219,6 +245,10 @@ do_create() {
 	else
 		pg_mode=external
 		pg_volume=external
+		if postgres_service_defined; then
+			echo "snapshot: note — a postgres service is defined, but env/api.env points DATABASE_URL at"
+			echo "          $(database_host). That is the database in use; the local container is not archived."
+		fi
 	fi
 	ch_volume="$(volume_at clickhouse /var/lib/clickhouse)"
 
@@ -336,7 +366,7 @@ do_restore() {
 	[ "$pg_mode" = external ] || [ -f "$from/pg-data.tar.gz" ] || die "$from/pg-data.tar.gz is missing"
 	[ -f "$from/ch-data.tar.gz" ] || die "$from/ch-data.tar.gz is missing"
 	if [ "$pg_mode" = volume ] && ! postgres_in_stack; then
-		die "$from holds a Postgres volume, but this stack runs no postgres service — restore it into a stack that does, or restore the database by hand"
+		die "$from holds a Postgres volume, but this stack does not use a bundled postgres (no such service, or DATABASE_URL names another host) — restore it into a stack that does, or restore the database by hand"
 	fi
 
 	local pg_volume="" ch_volume
