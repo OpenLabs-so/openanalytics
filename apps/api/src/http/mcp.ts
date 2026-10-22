@@ -1044,11 +1044,11 @@ export function createMcpRoutes(deps: McpRoutesDeps): Hono<Env> {
     c.json({
       resource: deps.resourceUrl,
       authorization_servers: [deps.authorizationServer],
-      // The full grant vocabulary, not just the read arm: this document is
-      // where an MCP client learns what it may ask for, so a scope missing
-      // here never reaches the consent screen — which is how the write
-      // scopes stayed invisible after ADR-0048 shipped them.
-      scopes_supported: [...GRANT_SCOPES],
+      // The product grant vocabulary plus OAuth's refresh scope. MCP clients
+      // build their authorization request from this document; omitting
+      // `offline_access` means the authorization server issues a refresh token
+      // that its own token endpoint then refuses to use.
+      scopes_supported: [...GRANT_SCOPES, 'offline_access'],
       bearer_methods_supported: ['header'],
     }),
   )

@@ -209,17 +209,18 @@ describeIfPostgres('dynamic client registration', () => {
       expect(oidcDoc['scopes_supported']).toEqual(EXPECTED_SUPPORTED_SCOPES)
     })
 
-    it('names the same vocabulary in the MCP protected-resource document, minus the OIDC basics', async () => {
+    it('advertises the product scopes and offline access to MCP clients', async () => {
       // RFC 9728, at the resource root — the document an MCP host reads to
-      // learn what it may ask for. It carries the eleven scopes this API can
-      // act on and not `openid`/`profile`/`email`/`offline_access`, which are
-      // the authorization server's own business and confer nothing here.
+      // learn what it may ask for. `offline_access` is an authorization-server
+      // scope, but belongs here because MCP clients derive their requested
+      // scopes from this document and need it for refresh tokens.
       const res = await request('/.well-known/oauth-protected-resource')
       expect(res.status).toBe(200)
       const doc = (await res.json()) as { scopes_supported: string[] }
-      expect(doc.scopes_supported).toEqual(
-        EXPECTED_SUPPORTED_SCOPES.filter((scope) => scope.includes(':')),
-      )
+      expect(doc.scopes_supported).toEqual([
+        ...EXPECTED_SUPPORTED_SCOPES.filter((scope) => scope.includes(':')),
+        'offline_access',
+      ])
     })
 
     it('serves RFC 8414’s two root spellings by forwarding to the one real document', async () => {
@@ -358,7 +359,12 @@ describeIfPostgres('dynamic client registration', () => {
     it('runs authorize → consent → token → /mcp, PKCE and all', async () => {
       const client = await register()
       const { verifier, challenge } = pkcePair()
-      const scope = 'openid offline_access site:read analytics:read'
+      const resourceMetadata = (await (
+        await request('/.well-known/oauth-protected-resource')
+      ).json()) as {
+        scopes_supported: string[]
+      }
+      const scope = ['openid', ...resourceMetadata.scopes_supported].join(' ')
 
       // Authorize, holding a session. The client is not trusted, so Better
       // Auth forwards the browser to our consent page.
@@ -450,9 +456,21 @@ describeIfPostgres('dynamic client registration', () => {
         client_id: client.client_id,
       })
       expect(refreshed.status, await refreshed.clone().text()).toBe(200)
-      const renewed = (await refreshed.json()) as { access_token: string }
+      const renewed = (await refreshed.json()) as {
+        access_token: string
+        refresh_token: string
+      }
       expect(renewed.access_token).toBeTruthy()
       expect(renewed.access_token).not.toBe(issued.access_token)
+      expect(renewed.refresh_token).toBeTruthy()
+      expect(renewed.refresh_token).not.toBe(issued.refresh_token)
+
+      const refreshedMcp = await postJson(
+        '/mcp',
+        { jsonrpc: '2.0', id: 2, method: 'tools/list' },
+        { authorization: `Bearer ${renewed.access_token}` },
+      )
+      expect(refreshedMcp.status).toBe(200)
     })
 
     it('shows a write scope on the consent screen, grants it, and the read narrowings ignore it (ADR-0048 CP1)', async () => {
