@@ -25,6 +25,13 @@ Everyone else has nothing to do.
   stack stopped, and a restore stops with the stack down so Postgres can be
   restored to that instant first.
 
+### Fixed
+
+- **MCP OAuth refresh tokens work.** The protected-resource discovery document
+  now advertises `offline_access`, so MCP clients that derive their requested
+  scopes from it receive usable refresh tokens instead of being forced to
+  authorize again after the access token expires.
+
 ### Changed
 
 - **The optional object storage is RustFS, not MinIO.** MinIO stopped

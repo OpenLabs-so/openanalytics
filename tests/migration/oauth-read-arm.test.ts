@@ -1053,6 +1053,7 @@ describeIfPostgres('the OAuth read arm', () => {
         'events:write',
         'widgets:write',
         'share:write',
+        'offline_access',
       ])
     })
 
