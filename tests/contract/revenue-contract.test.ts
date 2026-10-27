@@ -102,10 +102,10 @@ describe('RevenueProvider', () => {
     expect(REVENUE_PROVIDERS.map((provider) => provider.id)).toEqual([
       'stripe',
       'polar',
+      'dodo',
       'paddle',
       'lemonsqueezy',
       'creem',
-      'dodo',
     ])
   })
 })

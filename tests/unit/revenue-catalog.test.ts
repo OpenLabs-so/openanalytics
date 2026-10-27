@@ -9,8 +9,10 @@ import {
   type RevenueAdapter,
 } from '@openanalytics/domain'
 import {
+  DODO_REVENUE_PROVIDER_ID,
   POLAR_REVENUE_PROVIDER_ID,
   STRIPE_REVENUE_PROVIDER_ID,
+  createDodoRevenueAdapter,
   createPolarRevenueAdapter,
   createStripeRevenueAdapter,
 } from '@openanalytics/integrations'
@@ -27,25 +29,25 @@ import { fakeRevenueAdapter } from '../support/revenue-fixtures.ts'
  */
 
 describe('revenue provider catalog', () => {
-  it('offers Stripe and Polar, and nothing without an adapter behind it', () => {
-    // M12 shipped the framework plus Stripe (D1's scope cut); Polar is the
-    // second provider and arrived as a catalog flip. Anything else marked
+  it('offers Stripe, Polar and Dodo, and nothing without an adapter behind it', () => {
+    // M12 shipped the framework plus Stripe (D1's scope cut); Polar and Dodo
+    // arrived as catalog flips. Anything else marked
     // available would promise a connection nothing can complete — the picker
     // renders this list verbatim.
     const available = REVENUE_PROVIDERS.filter((provider) => provider.available)
-    expect(available.map((provider) => provider.id)).toEqual(['stripe', 'polar'])
+    expect(available.map((provider) => provider.id)).toEqual(['stripe', 'polar', 'dodo'])
   })
 
-  it('lists the four follow-up providers rather than hiding them', () => {
+  it('lists the follow-up providers rather than hiding them, after the working ones', () => {
     // "Supported later" and "not something we do" are different answers, and a
     // catalog carrying only working adapters could give only the second.
     expect(REVENUE_PROVIDERS.map((provider) => provider.id)).toEqual([
       'stripe',
       'polar',
+      'dodo',
       'paddle',
       'lemonsqueezy',
       'creem',
-      'dodo',
     ])
   })
 
@@ -70,16 +72,19 @@ describe('revenue provider catalog', () => {
     expect(findRevenueProvider(STRIPE_REVENUE_PROVIDER_ID)?.available).toBe(true)
     expect(POLAR_REVENUE_PROVIDER_ID).toBe('polar')
     expect(findRevenueProvider(POLAR_REVENUE_PROVIDER_ID)?.available).toBe(true)
+    expect(DODO_REVENUE_PROVIDER_ID).toBe('dodo')
+    expect(findRevenueProvider(DODO_REVENUE_PROVIDER_ID)?.available).toBe(true)
   })
 
-  it('registers both real adapters side by side, which is the whole claim', () => {
-    // The registry refuses a duplicate id, so this also proves the two adapters
+  it('registers every real adapter side by side, which is the whole claim', () => {
+    // The registry refuses a duplicate id, so this also proves the adapters
     // do not collide — and it is the exact composition both `main.ts` files use.
     const registry = createRevenueAdapterRegistry([
       createStripeRevenueAdapter(),
       createPolarRevenueAdapter(),
+      createDodoRevenueAdapter(),
     ])
-    expect([...registry.keys()].sort()).toEqual(['polar', 'stripe'])
+    expect([...registry.keys()].sort()).toEqual(['dodo', 'polar', 'stripe'])
 
     // Every provider the catalog advertises must resolve to an adapter here.
     for (const provider of REVENUE_PROVIDERS.filter((row) => row.available)) {

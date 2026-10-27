@@ -24,6 +24,9 @@ Everyone else has nothing to do.
   the host: the snapshot holds ClickHouse only and records the instant the
   stack stopped, and a restore stops with the stack down so Postgres can be
   restored to that instant first.
+- **Dodo Payments as a revenue provider.** A third provider a site can
+  connect, with a live-mode API key and a webhook. Revenue is reported net of
+  the tax Dodo remits as merchant of record.
 
 ### Changed
 

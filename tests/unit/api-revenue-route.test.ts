@@ -301,14 +301,15 @@ describe('GET /v1/revenue/providers', () => {
     expect(body.items.map((item) => item.id)).toEqual([
       'stripe',
       'polar',
+      'dodo',
       'paddle',
       'lemonsqueezy',
       'creem',
-      'dodo',
     ])
     expect(body.items.filter((item) => item.available).map((item) => item.id)).toEqual([
       'stripe',
       'polar',
+      'dodo',
     ])
     expect(body.items[0]).toEqual({ id: 'stripe', display_name: 'Stripe', available: true })
   })

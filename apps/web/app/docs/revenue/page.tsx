@@ -25,6 +25,32 @@ export default function RevenueDocsPage() {
         </p>
       </DocSection>
 
+      <DocSection title="Connecting Dodo Payments">
+        <p>
+          The same two steps: an API key from the Dodo dashboard (Developer,
+          API Keys — a dedicated key you can revoke on its own is the one to
+          use), then a webhook endpoint at the address we show you, whose
+          signing secret you paste back. Subscribe it to the{" "}
+          <Code>payment.*</Code>, <Code>refund.*</Code> and{" "}
+          <Code>dispute.*</Code> events; anything else it receives is
+          acknowledged and ignored.
+        </p>
+        <p>
+          Dodo is the merchant of record, so revenue is reported net of the
+          tax it collects and remits. Refunds are recorded at the amount the
+          customer got back, which includes that tax. Connect a live-mode key:
+          test mode is a separate Dodo environment this connection does not
+          read.
+        </p>
+        <p>
+          For attribution, the <Code>payment_id</Code> Dodo appends to your
+          checkout&apos;s return URL is the <Code>order_id</Code> to send with
+          the conversion; to link by person instead, put the id you give{" "}
+          <Code>identify()</Code> in the checkout&apos;s metadata as{" "}
+          <Code>oa_external_id</Code>.
+        </p>
+      </DocSection>
+
       <DocSection title="Attribution is opt-in, and it asks something of you">
         <p>
           Revenue totals need nothing from your visitors. Tying a payment back

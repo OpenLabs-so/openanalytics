@@ -12,6 +12,7 @@ import {
   CredentialKeyringError,
   createCredentialVault,
   createOpenAiChatClient,
+  createDodoRevenueAdapter,
   createS3ObjectStorage,
   createPolarRevenueAdapter,
   createStripeRevenueAdapter,
@@ -309,11 +310,12 @@ if (env.OA_CREDENTIAL_KEYRING) {
       vault,
       adapters: createRevenueAdapterRegistry([
         createStripeRevenueAdapter(),
-        // The second provider. Registered here and in the worker from the same
+        // Polar and Dodo. Registered here and in the worker from the same
         // list the catalog advertises — a credential naming a provider with no
         // adapter fails `adapter_unavailable` rather than half-working, so the
         // two must be flipped together.
         createPolarRevenueAdapter(),
+        createDodoRevenueAdapter(),
       ]),
     }
     // The active version's *label* — never material. It is what an operator

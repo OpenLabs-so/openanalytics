@@ -281,6 +281,119 @@ export function polarListPage(
   }
 }
 
+const DODO_CREATED = '2026-07-31T10:00:00.123456Z'
+
+/**
+ * A Dodo Payment, in the shape `GET /payments/{id}` and a `payment.*` event's
+ * `data` have.
+ *
+ * Written from Dodo's published API reference. A taxed payment on purpose: the
+ * adapter reads `total_amount - tax`, and a fixture with no tax could not tell
+ * that from reading `total_amount`.
+ */
+export function dodoPayment(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    payload_type: 'Payment',
+    payment_id: 'pay_test_1',
+    business_id: 'bus_test_1',
+    brand_id: 'bus_test_1',
+    created_at: DODO_CREATED,
+    status: 'succeeded',
+    currency: 'EUR',
+    // 4999 to the seller plus 1050 VAT that Dodo remits as merchant of record.
+    total_amount: 6049,
+    tax: 1050,
+    settlement_amount: 6049,
+    settlement_currency: 'EUR',
+    settlement_tax: 1050,
+    refund_status: null,
+    checkout_session_id: 'cks_test_1',
+    subscription_id: null,
+    subscription_ids: [],
+    product_cart: [{ product_id: 'pdt_test_1', quantity: 1 }],
+    metadata: { oa_external_id: 'site_user_1' },
+    customer: {
+      customer_id: 'cus_test_1',
+      email: 'buyer@example.com',
+      name: 'Test Buyer',
+      metadata: {},
+    },
+    refunds: [],
+    disputes: [],
+    ...overrides,
+  }
+}
+
+/** The thinner row `GET /payments` lists: no `tax`, no settlement fields. */
+export function dodoPaymentListRow(
+  overrides: Record<string, unknown> = {},
+): Record<string, unknown> {
+  const {
+    payload_type: _payloadType,
+    tax: _tax,
+    settlement_amount: _settlementAmount,
+    settlement_currency: _settlementCurrency,
+    settlement_tax: _settlementTax,
+    refunds: _refunds,
+    disputes: _disputes,
+    product_cart: _productCart,
+    ...row
+  } = dodoPayment()
+  return { ...row, ...overrides }
+}
+
+/** A Dodo Refund. `amount` is the amount returned to the customer, tax included. */
+export function dodoRefund(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    payload_type: 'Refund',
+    refund_id: 'ref_test_1',
+    payment_id: 'pay_test_1',
+    business_id: 'bus_test_1',
+    created_at: '2026-07-31T10:01:00.000000Z',
+    status: 'succeeded',
+    amount: 1500,
+    currency: 'EUR',
+    is_partial: true,
+    reason: null,
+    metadata: {},
+    customer: { customer_id: 'cus_test_1', email: 'buyer@example.com', name: 'Test Buyer' },
+    ...overrides,
+  }
+}
+
+/** A Dodo Dispute. `amount` is a **string** of minor units, as documented. */
+export function dodoDispute(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    payload_type: 'Dispute',
+    dispute_id: 'dsp_test_1',
+    payment_id: 'pay_test_1',
+    business_id: 'bus_test_1',
+    created_at: '2026-07-31T10:02:00.000000Z',
+    amount: '6049',
+    currency: 'EUR',
+    dispute_status: 'dispute_opened',
+    dispute_stage: 'dispute',
+    is_resolved_by_rdr: null,
+    customer: { customer_id: 'cus_test_1', email: 'buyer@example.com', name: 'Test Buyer' },
+    ...overrides,
+  }
+}
+
+/** The envelope: `{business_id, type, timestamp, data}` — no id, as for Polar. */
+export function dodoEvent(
+  type: string,
+  data: Record<string, unknown>,
+  overrides: Record<string, unknown> = {},
+): Record<string, unknown> {
+  return {
+    business_id: 'bus_test_1',
+    type,
+    timestamp: '2026-07-31T10:00:05.000000Z',
+    data,
+    ...overrides,
+  }
+}
+
 /**
  * The ECB daily file, in the exact nesting the real document uses.
  *

@@ -38,15 +38,20 @@ export interface RevenueProviderDescriptor {
  * boundary this catalog is really testing: a second provider may cost the
  * *transport* a generalization, and must cost the architecture nothing.
  *
- * The remaining four are recorded follow-ups behind the same framework.
+ * **Dodo Payments is the third**, and it cost the transport nothing: it signs
+ * Standard Webhooks per the specification and keeps its event id in the same
+ * header Polar's does. It moved up to sit with the providers that work, which is
+ * the order this list promises.
+ *
+ * The remaining three are recorded follow-ups behind the same framework.
  */
 export const REVENUE_PROVIDERS: readonly RevenueProviderDescriptor[] = [
   { id: 'stripe', displayName: 'Stripe', available: true },
   { id: 'polar', displayName: 'Polar', available: true },
+  { id: 'dodo', displayName: 'Dodo Payments', available: true },
   { id: 'paddle', displayName: 'Paddle', available: false },
   { id: 'lemonsqueezy', displayName: 'Lemon Squeezy', available: false },
   { id: 'creem', displayName: 'Creem', available: false },
-  { id: 'dodo', displayName: 'Dodo Payments', available: false },
 ]
 
 export function findRevenueProvider(id: unknown): RevenueProviderDescriptor | null {

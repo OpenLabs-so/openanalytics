@@ -165,6 +165,20 @@ export {
 } from './polar-revenue.ts'
 
 /**
+ * The third revenue provider, and the first that cost the framework nothing at
+ * all: Standard Webhooks signed per the specification, an event id in the
+ * header Polar already taught the port to carry.
+ */
+export {
+  DODO_LIST_PAGE_SIZE,
+  DODO_LIVE_API_BASE,
+  DODO_PAYMENTS_PAGE_SIZE,
+  DODO_REVENUE_PROVIDER_ID,
+  DODO_TEST_API_BASE,
+  createDodoRevenueAdapter,
+} from './dodo-revenue.ts'
+
+/**
  * The Standard Webhooks verifier, beside the Stripe one. Exported because the
  * webhook suites sign with it, and because the next provider on the D9 list that
  * uses the scheme should find it rather than write a second copy.

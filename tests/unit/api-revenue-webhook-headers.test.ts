@@ -2,6 +2,7 @@ import { randomBytes } from 'node:crypto'
 import { createRevenueAdapterRegistry, revenueCredentialAad } from '@openanalytics/domain'
 import {
   createCredentialVault,
+  createDodoRevenueAdapter,
   createPolarRevenueAdapter,
   createStripeRevenueAdapter,
 } from '@openanalytics/integrations'
@@ -9,7 +10,7 @@ import type { Database, RevenueCredentialRow } from '@openanalytics/postgres'
 import type * as PostgresModule from '@openanalytics/postgres'
 import { signStandardWebhook, signStripeWebhook } from '@openanalytics/testkit'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { polarEvent, polarOrder } from '../support/revenue-fixtures.ts'
+import { dodoEvent, dodoPayment, polarEvent, polarOrder } from '../support/revenue-fixtures.ts'
 import { stripeCharge, stripeEvent } from '../support/revenue-fixtures.ts'
 
 /**
@@ -32,6 +33,8 @@ import { stripeCharge, stripeEvent } from '../support/revenue-fixtures.ts'
  * - **The event id really does come off the header** and reaches the ledger as
  *   `providerEventId` — the value a redelivery dedupes on. Polar's body has no
  *   id, so if the header did not arrive there would be nothing to key on.
+ * - **Dodo rides the same transport unchanged**, with the specification's key
+ *   derivation where Polar has its own — the two must not be interchangeable.
  */
 
 const SITE = '3f2a1c64-9a1a-4e2f-9c1e-2a0f1d3b5c77'
@@ -39,19 +42,21 @@ const CREDENTIAL = '7c9e2f10-0000-4000-8000-0000000c0ffe'
 const TOKEN = 'tok_opaque_abcdef'
 const WEBHOOK_SECRET = 'whsec_test_credential_secret'
 const API_KEY = 'rk_test_restricted_abcdef1234'
+/** A spec-shaped secret: Dodo base64-decodes what follows `whsec_`. */
+const DODO_WEBHOOK_SECRET = `whsec_${Buffer.from('dodo-route-signing-key-24').toString('base64')}`
 
 const vault = createCredentialVault(
   JSON.stringify({ active: 'k1', keys: { k1: randomBytes(32).toString('base64') } }),
 )
 const aad = revenueCredentialAad({ credentialId: CREDENTIAL, siteId: SITE })
 
-function credential(provider: string): RevenueCredentialRow {
+function credential(provider: string, webhookSecret = WEBHOOK_SECRET): RevenueCredentialRow {
   return {
     id: CREDENTIAL,
     siteId: SITE,
     provider,
     encryptedApiKey: vault.encrypt(API_KEY, aad).stored,
-    encryptedWebhookSecret: vault.encrypt(WEBHOOK_SECRET, aad).stored,
+    encryptedWebhookSecret: vault.encrypt(webhookSecret, aad).stored,
     keyVersion: 'k1',
     apiKeyLast4: '1234',
     webhookToken: TOKEN,
@@ -104,6 +109,7 @@ const app = createRevenueWebhookRoutes({
   adapters: createRevenueAdapterRegistry([
     createStripeRevenueAdapter(),
     createPolarRevenueAdapter(),
+    createDodoRevenueAdapter(),
   ]),
 })
 
@@ -218,6 +224,44 @@ describe('the route passes the whole header set', () => {
     delete headers['webhook-id']
 
     const res = await deliver('polar', body, headers)
+    expect(res.status).toBe(400)
+    expect(calls.ledgerInserts).toHaveLength(0)
+  })
+
+  it('authenticates a Dodo delivery and ledgers it under the webhook-id header', async () => {
+    world.credential = credential('dodo', DODO_WEBHOOK_SECRET)
+    const body = JSON.stringify(dodoEvent('payment.succeeded', dodoPayment()))
+    expect(JSON.parse(body)).not.toHaveProperty('id')
+
+    const headers = signStandardWebhook({
+      payload: body,
+      secret: DODO_WEBHOOK_SECRET,
+      secretEncoding: 'base64',
+      webhookId: 'msg_dodo_delivery_7',
+      timestamp: Math.floor(Date.now() / 1000),
+    })
+
+    const res = await deliver('dodo', body, headers)
+    expect(res.status).toBe(200)
+    expect(calls.ledgerInserts[0]).toMatchObject({
+      provider: 'dodo',
+      providerEventId: 'msg_dodo_delivery_7',
+    })
+  })
+
+  it('refuses a Dodo delivery signed with Polar’s derivation of the same secret', async () => {
+    // Same secret string, different key bytes. A verifier that took either would
+    // be checking against two keys at once.
+    world.credential = credential('dodo', DODO_WEBHOOK_SECRET)
+    const body = JSON.stringify(dodoEvent('payment.succeeded', dodoPayment()))
+    const headers = signStandardWebhook({
+      payload: body,
+      secret: DODO_WEBHOOK_SECRET,
+      secretEncoding: 'raw',
+      timestamp: Math.floor(Date.now() / 1000),
+    })
+
+    const res = await deliver('dodo', body, headers)
     expect(res.status).toBe(400)
     expect(calls.ledgerInserts).toHaveLength(0)
   })
