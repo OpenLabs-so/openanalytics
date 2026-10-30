@@ -222,6 +222,22 @@ describeIfPostgres('dynamic client registration', () => {
       )
     })
 
+    it('names an authorization server whose metadata claims that same issuer', async () => {
+      // RFC 8414 §3.3: a client MUST reject metadata whose `issuer` differs from
+      // the identifier it fetched it for. The protected-resource document is
+      // where an MCP client gets that identifier, so naming anything but the
+      // issuer Better Auth reports fails every sign-in with "issuer mismatch".
+      const prm = await request('/.well-known/oauth-protected-resource')
+      const [authorizationServer] = ((await prm.json()) as { authorization_servers: string[] })
+        .authorization_servers
+      const { pathname } = new URL(authorizationServer ?? '')
+      const wellKnown = `/.well-known/oauth-authorization-server${pathname === '/' ? '' : pathname}`
+      const res = await request(wellKnown)
+      expect(res.status, wellKnown).toBe(200)
+      const doc = (await res.json()) as Record<string, unknown>
+      expect(doc['issuer']).toBe(authorizationServer)
+    })
+
     it('serves RFC 8414’s two root spellings by forwarding to the one real document', async () => {
       for (const path of [
         '/.well-known/oauth-authorization-server',

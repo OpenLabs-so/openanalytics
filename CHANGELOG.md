@@ -35,6 +35,14 @@ Everyone else has nothing to do.
   now includes a bucket CORS rule. The old `minio-data` volume is left in
   place and nothing reads it.
 
+### Fixed
+
+- **MCP sign-in no longer fails with "OAuth issuer mismatch".** The
+  `/.well-known/oauth-protected-resource` document named `<api>/api/auth` as
+  its authorization server, while that server's metadata gives its issuer as
+  the bare api origin. Clients that check the two match, as RFC 8414 requires,
+  refused to sign in. The document now names the issuer Better Auth reports.
+
 ## [0.8.0] - 2026-09-19
 
 **Upgrade notes: nothing by hand — and going back is a restore.**
