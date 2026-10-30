@@ -1007,7 +1007,12 @@ export interface McpRoutesDeps {
   /** The api's own public origin, for building the internal request's URL and
    * the RFC 9728 metadata. */
   readonly resourceUrl: string
-  /** The authorization server's issuer — Better Auth's base. */
+  /**
+   * The authorization server's issuer, byte-for-byte what its metadata says —
+   * Better Auth's configured `baseURL`, the api's bare origin. Not where its
+   * routes live (`/api/auth`): a client compares this string to the metadata's
+   * `issuer` and refuses to sign in on any difference.
+   */
   readonly authorizationServer: string
   /**
    * Resolves a bearer to a live OAuth grant, or nothing.
@@ -1056,10 +1061,11 @@ export function createMcpRoutes(deps: McpRoutesDeps): Hono<Env> {
   /**
    * RFC 8414 authorization-server metadata, at the origin's root (ADR-0047 D7).
    *
-   * The issuer is `<origin>/api/auth`, so RFC 8414 §3.1's well-known URL is the
-   * *path-insertion* spelling — `/.well-known/oauth-authorization-server/api/auth`
-   * — while many OAuth clients (MCP hosts among them) also try the bare root
-   * document. Both answer here, and neither is a second authorship: the request
+   * The issuer is the bare origin, so RFC 8414 §3.1's well-known URL is the
+   * root document. The path-insertion spelling
+   * (`/.well-known/oauth-authorization-server/api/auth`) is still answered for
+   * clients that derive it from where Better Auth's routes live. Both serve the
+   * same document, and neither is a second authorship: the request
    * is forwarded through `dispatch` to Better Auth's own document, which
    * carries the ADR-0047 overrides (`registration_endpoint`, the full scope
    * list). An alias that re-stated the JSON would age the first time the
@@ -1067,7 +1073,8 @@ export function createMcpRoutes(deps: McpRoutesDeps): Hono<Env> {
    */
   const forwardAuthorizationServerMetadata = async (): Promise<Response> => {
     const response = await deps.dispatch(
-      new Request(`${deps.authorizationServer}/.well-known/oauth-authorization-server`),
+      // Better Auth's routes are under `/api/auth` whatever the issuer says.
+      new Request(`${deps.resourceUrl}/api/auth/.well-known/oauth-authorization-server`),
     )
     // Re-wrapped rather than returned as-is: the inner response is the
     // dispatched app's, and returning it directly would carry that route's

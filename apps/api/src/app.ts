@@ -735,9 +735,15 @@ export function createApp(deps: AppDeps) {
       createMcpRoutes({
         dispatch: async (request) => app.fetch(request),
         resourceUrl: apiOrigin,
-        // Better Auth's own base is the issuer: `/api/auth/.well-known/openid-configuration`
-        // and `/api/auth/oauth2/*` are where a client goes next.
-        authorizationServer: `${apiOrigin}/api/auth`,
+        // The issuer exactly as Better Auth states it in its metadata, which is
+        // its configured `baseURL` — the bare origin, NOT `<origin>/api/auth`.
+        // RFC 8414 §3.3 has a client reject metadata whose `issuer` differs from
+        // the server this document named, so naming `/api/auth` here failed
+        // every MCP sign-in with "issuer mismatch". Read off the auth instance
+        // rather than rebuilt from AUTH_BASE_URL, so a trailing slash or a
+        // differently-configured instance cannot reopen the gap.
+        authorizationServer:
+          typeof deps.auth?.options?.baseURL === 'string' ? deps.auth.options.baseURL : apiOrigin,
         // The read arm's own resolver, so "is this token live" has one answer.
         verifyBearer: async (token) => resolveOAuthAccessToken(readDb, token),
         // The default calendar a ranged tool reads on (ADR-0079 D5), scoped to
